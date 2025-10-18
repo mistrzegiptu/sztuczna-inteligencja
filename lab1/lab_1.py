@@ -8,9 +8,9 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.17.3
 #   kernelspec:
-#     display_name: Python 3 (ipykernel)
+#     display_name: PSI
 #     language: python
-#     name: python3
+#     name: psi
 # ---
 
 # %% [markdown] editable=true slideshow={"slide_type": ""}
@@ -881,17 +881,28 @@ print(f"RMSE: {rmse:.4f}")
 def assess_regression_model(model, X_train, X_test, y_train, y_test) -> tuple[float, float]:
     # predict for train and test
     # your_code_here
-
+    predicted_Y_train = model.predict(X_train)
+    predicted_Y_test = model.predict(X_test)
+    
     # exponential transform for y_train, y_test and predictions
     # your_code_here
+    y_train_exp = np.exp(y_train)
+    y_test_exp = np.exp(y_test)
+    predicted_Y_train = np.exp(predicted_Y_train)
+    predicted_Y_test = np.exp(predicted_Y_test)
 
     # calculate train and test RMSE
     # your_code_here
+    train_error = root_mean_squared_error(y_train_exp, predicted_Y_train)
+    test_error = root_mean_squared_error(y_test_exp, predicted_Y_test)
     
     # print train and test RMSE
     # your_code_here
-
+    print("%.2f" % train_error)
+    print("%.2f" % test_error)
+    
     # your_code
+    return train_error, test_error
 
 
 
@@ -907,8 +918,8 @@ print("Solution is correct!")
 
 
 # %% [markdown] editable=true slideshow={"slide_type": ""} tags=["ex"]
-# // skomentuj tutaj
-#
+# // skomentuj tutaj \
+# RMSE jest większy dla danych treningowych, niż dla danych testowych, więc jest możliwy overfitting modelu.
 #
 
 # %% [markdown] editable=true slideshow={"slide_type": ""}
@@ -1051,7 +1062,26 @@ print()
 # Przetestuj modele z użyciem `assess_regression_model()`. Skomentuj wyniki. Czy udało się wyeliminować overfitting?
 
 # %% editable=true slideshow={"slide_type": ""} tags=["ex"]
-# your_code
+from sklearn.linear_model import LassoCV, RidgeCV
+
+alphas = np.linspace(start=0.1, stop=100, num=1000)
+ridge = RidgeCV(alphas)
+ridge.fit(X_train, y_train)
+
+reg_ridge_alpha = ridge.alpha_
+
+print(reg_ridge_alpha)
+
+ridge_train_rmse, ridge_test_rmse = assess_regression_model(ridge, X_train, X_test, y_train, y_test)
+
+lasso = LassoCV(alphas=1000, random_state=0, cv=None)
+lasso.fit(X_train, y_train)
+
+reg_lasso_alpha = lasso.alpha_
+
+print(reg_lasso_alpha)
+
+lasso_train_rmse, lasso_test_rmse = assess_regression_model(lasso, X_train, X_test, y_train, y_test)
 
 
 # %% editable=true slideshow={"slide_type": ""} tags=["ex"]
@@ -1067,8 +1097,8 @@ assert 0 < reg_lasso_alpha < 0.1
 print("Solution is correct!")
 
 # %% [markdown] editable=true slideshow={"slide_type": ""} tags=["ex"]
-# // skomentuj tutaj
-#
+# // skomentuj tutaj \
+# Użycie regresji ( szczególnie Lasso) znacząco poprawiło błędy overfitingu. 
 #
 
 # %% [markdown] editable=true slideshow={"slide_type": ""}
@@ -1181,6 +1211,13 @@ y_mapping = {
 
 # %% editable=true slideshow={"slide_type": ""} tags=["ex"]
 # your_code
+df = pd.read_csv("bank_marketing_data.csv", sep=";")
+df = df.drop(["default", "duration", "pdays", "poutcome"], axis=1)
+df = df[df.education != "illiterate"]
+
+df = df.replace({ "month": month_mapping, "education": education_mapping, "contact": contact_mapping, "month": month_mapping, "day_of_week": day_of_week_mapping, "y": y_mapping})
+
+y = df.pop("y")
 
 
 # %% editable=true slideshow={"slide_type": ""} tags=["ex"]
@@ -1218,13 +1255,17 @@ y = y.astype({"y": np.int64})
 # 2. Narysuj wykres (bar plot) z częstością klas. Uwzględnij częstość na wykresie ([to może się przydać](https://stackoverflow.com/a/68107610/9472066)). Pamiętaj o tytule i opisaniu osi.
 
 # %% editable=true slideshow={"slide_type": ""} tags=["ex"]
-# plot missing values
-# your_code
+missing_values = df.isnull().sum()
+print("Liczba brakujących wartości w każdej kolumnie:")
+print(missing_values)
 
 
 # %% editable=true slideshow={"slide_type": ""} tags=["ex"]
-# plot class frequencies
-# your_code
+ax = y.value_counts().plot.bar()
+ax.set_title("Classes frequency")
+ax.set_xlabel("Class")
+ax.set_ylabel("Frequency")
+ax.bar_label(ax.containers[0])
 
 
 # %% [markdown] editable=true slideshow={"slide_type": ""}
