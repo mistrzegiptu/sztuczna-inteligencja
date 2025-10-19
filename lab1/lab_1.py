@@ -1282,7 +1282,22 @@ ax.bar_label(ax.containers[0])
 #
 
 # %% editable=true slideshow={"slide_type": ""} tags=["ex"]
-# your_code
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.compose import ColumnTransformer
+
+X_train, X_test, y_train, y_test = train_test_split(df, y, test_size=0.25, stratify=y, random_state=0)
+
+one_hot_encoder = OneHotEncoder(sparse_output=False)
+standard_scaler = StandardScaler()
+
+categorical_pipeline = Pipeline([("one_hot_encoder", one_hot_encoder)])
+numerical_pipeline = Pipeline([("standard_scaler", standard_scaler)])
+
+column_transformer = ColumnTransformer(transformers=[("categorical_pipeline", categorical_pipeline, categorical_features),("numerical_pipeline", numerical_pipeline, numerical_features)])
+
+X_train = column_transformer.fit_transform(X_train)
+X_test = column_transformer.transform(X_test)
 
 
 # %% editable=true slideshow={"slide_type": ""} tags=["ex"]
@@ -1410,7 +1425,38 @@ column_transformer
 # Napisz co, w twojej opinii, jest ważniejsze dla naszego problemu, ***precision*** czy ***recall***? Jak moglibyśmy, nie zmieniając modelu, zmienić ich stosunek?
 
 # %% editable=true slideshow={"slide_type": ""} tags=["ex"]
-# your_code
+from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
+from sklearn.metrics import precision_score, recall_score, f1_score
+
+nol = LogisticRegression(class_weight="balanced", penalty=None, n_jobs=-1)
+nol.fit(X_train, y_train)
+y_pred = nol.predict(X_test)
+
+nol_precision = precision_score(y_test, y_pred)
+nol_recall = recall_score(y_test, y_pred)
+nol_f1 = f1_score(y_test, y_pred)
+print("Without regularization")
+print("Precision: %.2f%%, Recall: %.2f%%, F1: %.2f%%" % (nol_precision * 100, nol_recall * 100, nol_f1 * 100))
+
+l1 = LogisticRegressionCV(class_weight="balanced", solver="saga", penalty="l1", n_jobs=-1)
+l1.fit(X_train, y_train)
+y_pred = l1.predict(X_test)
+
+l1_precision = precision_score(y_test, y_pred)
+l1_recall = recall_score(y_test, y_pred)
+l1_f1 = f1_score(y_test, y_pred)
+print("With l1 regularization")
+print("Precision: %.2f%%, Recall: %.2f%%, F1: %.2f%%" % (l1_precision * 100, l1_recall * 100, l1_f1 * 100))
+
+l2 = LogisticRegressionCV(class_weight="balanced", penalty="l2", n_jobs=-1)
+l2.fit(X_train, y_train)
+y_pred = l2.predict(X_test)
+
+l2_precision = precision_score(y_test, y_pred)
+l2_recall = recall_score(y_test, y_pred)
+l2_f1 = f1_score(y_test, y_pred)
+print("With l2 regularization")
+print("Precision: %.2f%%, Recall: %.2f%%, F1: %.2f%%" % (l2_precision * 100, l2_recall * 100, l2_f1 * 100))
 
 
 # %% editable=true slideshow={"slide_type": ""} tags=["ex"]
@@ -1429,7 +1475,11 @@ assert 0.37 < l2_f1 < 0.38
 print("Solution is correct!")
 
 # %% editable=true slideshow={"slide_type": ""} tags=["ex"]
-# your_code
+y_predict_train = nol.predict(X_train)
+f1_train = f1_score(y_train, y_predict_train)
+
+y_predict_test = nol.predict(X_test)
+f1_test = f1_score(y_test, y_predict_test)
 
 
 # %% editable=true slideshow={"slide_type": ""} tags=["ex"]
@@ -1441,7 +1491,7 @@ print("Solution is correct!")
 # %% [markdown] editable=true slideshow={"slide_type": ""} tags=["ex"]
 # // skomentuj tutaj
 #
-#
+# W tym przypadku dużo bardziej zależeć będzie na precyzji, bo nie chcemy wysyłać reklam niezainteresowanym klientom. Jest to gorsze, niż pominięcie zainteresowanego klienta.
 
 # %% [markdown] editable=true slideshow={"slide_type": ""} tags=["ex"]
 # ### Zadanie 11 (2.0 punkty)
@@ -1456,7 +1506,32 @@ print("Solution is correct!")
 # 4. Zdecyduj, czy jest sens tworzyć modele z regularyzacją. Jeżeli tak, to wytrenuj i dokonaj tuningu takich modeli. Jeżeli nie, to uzasadnij czemu.
 
 # %% editable=true slideshow={"slide_type": ""} tags=["ex"]
-# your_code
+from sklearn.preprocessing import PolynomialFeatures
+
+categorical_features = df.select_dtypes(include="object").columns
+numerical_features = df.select_dtypes(exclude="object").columns
+
+X_train, X_test, y_train, y_test = train_test_split(df, y, test_size=0.25, stratify=y, random_state=0)
+
+polynomial_features = PolynomialFeatures(degree=2, include_bias=False)
+
+numerical_pipeline = Pipeline([("polynomial_features", polynomial_features), ("standard_scaler", standard_scaler)])
+
+column_transformer = ColumnTransformer(transformers=[("categorical_pipeline", categorical_pipeline, categorical_features),("polynomial_pipeline", numerical_pipeline, numerical_features)])
+
+X_train = column_transformer.fit_transform(X_train)
+X_test = column_transformer.transform(X_test)
+
+poly_reg_log = LogisticRegression(class_weight="balanced", penalty=None, max_iter=1000)
+poly_reg_log.fit(X_train, y_train)
+
+y_predict_train = poly_reg_log.predict(X_train)
+f1_train = f1_score(y_train, y_predict_train)
+
+y_predict_test = poly_reg_log.predict(X_test)
+f1_test = f1_score(y_test, y_predict_test)
+
+print("f1_train: %.2f%%, f1_test: %.2f%%" % (f1_train * 100, f1_test * 100))
 
 
 # %% editable=true slideshow={"slide_type": ""} tags=["ex"]
@@ -1468,7 +1543,7 @@ print("Solution is correct!")
 # %% [markdown] editable=true slideshow={"slide_type": ""} tags=["ex"]
 # // skomentuj tutaj
 #
-#
+# Nie zawsze jest sens tworzyć model z regularyzacją. Jak pokazał powyższy przykład, dokładność modelu z i bez regularyzacji, była niemal identyczna, ale czas potrzebny na obliczenia, zwiększył się.
 
 # %% [markdown] editable=true slideshow={"slide_type": ""} tags=["ex"]
 # ## Zadanie 12 dodatkowe (3 punkty)
