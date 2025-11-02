@@ -42,6 +42,10 @@
 # %% editable=true slideshow={"slide_type": ""}
 # #!unzip data/data.zip -d data
 
+# %%
+import warnings
+warnings.filterwarnings("ignore", message="X does not have valid feature names")
+
 # %% [markdown] editable=true slideshow={"slide_type": ""}
 #
 # W dalszej części laboratorium wykorzystamy plik `3year.arff`, w którym na podstawie danych finansowych firmy po 3 latach monitorowania chcemy przewidywać, czy firma zbankrutuje w ciągu najbliższych 3 lat. Jest to dość realistyczny horyzont czasowy.
@@ -342,6 +346,9 @@ y_score = forest_classifier.predict_proba(X_test)[:, 1]
 forest_roc = roc_auc_score(y_test, y_score)
 
 # %% editable=true slideshow={"slide_type": ""} tags=["ex"]
+print(tree_roc)
+print(forest_roc)
+
 assert 0.6 < tree_roc < 0.8
 assert 0.8 < forest_roc < 0.95
 
@@ -391,13 +398,14 @@ y_score = forest_grid_search.predict_proba(X_test)[:, 1]
 auroc = roc_auc_score(y_test, y_score)
 
 # %% editable=true slideshow={"slide_type": ""} tags=["ex"]
+print(auroc)
 assert 0.9 <= auroc <= 0.95
 
 print("Solution is correct!")
 
 # %% [markdown] editable=true pycharm={"name": "#%% md\n"} slideshow={"slide_type": ""} tags=["ex"]
 # // skomentuj tutaj \
-# Robi się już 26 godzin, więc chyba nie warto
+# Wszytsko zależy od dostępnych zasobów do obliczania, na moim laptopie ( z zintegrowaną kartą graficzną) po 26h wyłączyłem, bo stwierdziłem, że nie ma to sensu. Natomiast na PC zrobiło się w 5 minut. Jednak na pytanie, czy warto poświęcać tyle zasobów dla wyniku auroc lepszego o 0.008 , nie ma jednoznacznej odpowiedzi, gdyż zależy to od indywidualnych potrzeb i możliwości naszego sprzętu.
 # ![{4F71705A-41F5-4373-801B-FED942378176}.png](attachment:4f4d1ca3-7e6f-4426-a149-0831368493e9.png)
 
 # %% [markdown] editable=true pycharm={"name": "#%% md\n"} slideshow={"slide_type": ""}
@@ -441,9 +449,19 @@ print("Solution is correct!")
 
 # %% editable=true pycharm={"is_executing": true, "name": "#%%\n"} slideshow={"slide_type": ""} tags=["ex"]
 # your_code
+from lightgbm import LGBMClassifier
+
+LGBM_classifier = LGBMClassifier(importance_type="gain", random_state=0, n_jobs=-1)
+
+LGBM_classifier.fit(X_bal, y_bal)
+
+y_score = LGBM_classifier.predict_proba(X_test)[:, 1]
+auroc = roc_auc_score(y_test, y_score)
 
 
 # %% editable=true slideshow={"slide_type": ""} tags=["ex"]
+print(auroc)
+
 assert 0.9 <= auroc <= 0.97
 
 print("Solution is correct!")
@@ -489,15 +507,49 @@ print("Solution is correct!")
 
 # %% editable=true pycharm={"is_executing": true, "name": "#%%\n"} slideshow={"slide_type": ""} tags=["ex"]
 # your_code
+from sklearn.model_selection import RandomizedSearchCV
 
+param_grid = {
+    "n_estimators": [100, 250, 500],
+    "learning_rate": [0.05, 0.1, 0.2],
+    "num_leaves": [31, 48, 64],
+    "colsample_bytree": [0.8, 0.9, 1.0],
+    "subsample": [0.8, 0.9, 1.0],
+}
+
+LGBM_classifier = LGBMClassifier(importance_type="gain", random_state=0, n_jobs=-1, verbose=-1)
+
+LGBM_randomized = RandomizedSearchCV(estimator=LGBM_classifier, cv=5, param_distributions=param_grid, scoring="roc_auc", n_iter=30, verbose=0, random_state=0)
+
+LGBM_randomized.fit(X_bal, y_bal)
+
+y_score = LGBM_randomized.predict_proba(X_test)[:, 1]
+auroc = roc_auc_score(y_test, y_score)
+
+
+# %%
+from sklearn.metrics import classification_report
+
+print("Best params: " + str(LGBM_randomized.best_params_))
+
+normal_y_pred = LGBM_classifier.predict(X_test)
+hyper_tuned_y_pred = LGBM_randomized.predict(X_test)
+
+print("Model without hyper-parameter tuning")
+print(classification_report(y_true=y_test, y_pred=normal_y_pred))
+print("Model without hyper-parameter tuning")
+print(classification_report(y_true=y_test, y_pred=hyper_tuned_y_pred))
 
 # %% editable=true slideshow={"slide_type": ""} tags=["ex"]
+print(auroc)
+
 assert 0.9 <= auroc <= 0.99
 
 print("Solution is correct!")
 
 # %% [markdown] editable=true pycharm={"name": "#%% md\n"} slideshow={"slide_type": ""} tags=["ex"]
-# // skomentuj tutaj
+# // skomentuj tutaj \
+# Współczynnik AUROC nie zmienił się zbytnio, natomiast wzrosło precision dla klasy pozytywnej, a recall spadło o 0.06. Model stał się dokładniejszy w rozpoznawaniu bankrutujących firm, jednak rzadziej klasyfikuje firmę, jako bankrutująca. Skutkuje to możliwością przegapienia firmy, która bankrutuje, co nie jest pożądanym zjawiskiem. W tym przypadku lepiej mieć false positive, żeby ostrzec potencjalnie każdą firmę o możliwym bankructwie.
 
 # %% [markdown] editable=true pycharm={"name": "#%% md\n"} slideshow={"slide_type": ""}
 # **Boosting - podsumowanie**
@@ -544,11 +596,71 @@ print("Solution is correct!")
 # **Uwaga:** Scikit-learn normalizuje ważności do zakresu [0, 1], natomiast LightGBM nie. Musisz to znormalizować samodzielnie, dzieląc przez sumę.
 
 # %% editable=true slideshow={"slide_type": ""} tags=["ex"]
-# your_code
+import numpy as np
+import matplotlib.pyplot as plt
+
+tree_feature_importance = tree_classifier.feature_importances_
+top5_tree_idx = np.argsort(tree_feature_importance)[-5:][::-1]
+top5_tree_names = [feature_names[i] for i in top5_tree_idx]
+top5_tree_values = tree_feature_importance[top5_tree_idx]
+
+plt.figure(figsize=(8, 4))
+bars = plt.bar(top5_tree_names, top5_tree_values, color="red")
+plt.ylabel("Feature Importance")
+plt.title("Top 5 Features - Decision Tree")
+plt.xticks(rotation=45, ha="right")
+
+for bar in bars:
+    yval = bar.get_height()
+    plt.text(bar.get_x() + bar.get_width()/2, yval, f"{yval:.3f}", 
+             ha='center', va='bottom', fontsize=9)
+
+plt.tight_layout()
+plt.show()
+
+forest_feature_importance = forest_classifier.feature_importances_
+top5_forest_idx = np.argsort(forest_feature_importance)[-5:][::-1]
+top5_forest_names = [feature_names[i] for i in top5_forest_idx]
+top5_forest_values = forest_feature_importance[top5_forest_idx]
+
+plt.figure(figsize=(8, 4))
+bars = plt.bar(top5_forest_names, top5_forest_values, color="green")
+plt.ylabel("Feature Importance")
+plt.title("Top 5 Features - Random Forest")
+plt.xticks(rotation=45, ha="right")
+
+for bar in bars:
+    yval = bar.get_height()
+    plt.text(bar.get_x() + bar.get_width()/2, yval, f"{yval:.3f}", 
+             ha='center', va='bottom', fontsize=9)
+
+plt.tight_layout()
+plt.show()
+
+lgbm_importance = LGBM_classifier.feature_importances_
+lgbm_importance = lgbm_importance / np.sum(lgbm_importance)
+top5_lgbm_idx = np.argsort(lgbm_importance)[-5:][::-1]
+top5_lgbm_names = [feature_names[i] for i in top5_lgbm_idx]
+top5_lgbm_values = lgbm_importance[top5_lgbm_idx]
+
+plt.figure(figsize=(8, 4))
+bars = plt.bar(top5_lgbm_names, top5_lgbm_values, color="blue")
+plt.ylabel("Normalized Feature Importance")
+plt.title("Top 5 Features - LightGBM")
+plt.xticks(rotation=45, ha="right")
+
+for bar in bars:
+    yval = bar.get_height()
+    plt.text(bar.get_x() + bar.get_width()/2, yval, f"{yval:.3f}", 
+             ha='center', va='bottom', fontsize=9)
+
+plt.tight_layout()
+plt.show()
 
 
 # %% [markdown] editable=true slideshow={"slide_type": ""} tags=["ex"]
-# // skomentuj tutaj
+# // skomentuj tutaj \
+# Wybór cech w każdym modelu wygląda raczej sensownie. Wszędzie powtarza się cechy: sales(n) / sales(n-1), czy profit on operating activities / financial expenses albo operating expenses / total liabilities. Myślę, że takie cechy dobrze obrazują kondycję firmy, bo pokazują sprzedaż, dochód i wartość operacji.
 
 # %% [markdown]
 # ### Dla zainteresowanych
@@ -582,3 +694,68 @@ print("Solution is correct!")
 # - Boruta (wrapper method), stworzony na Uniwersytecie Warszawskim, łączący Random Forest oraz testy statystyczne (biblioteka `boruta_py`): [link 1](https://towardsdatascience.com/boruta-explained-the-way-i-wish-someone-explained-it-to-me-4489d70e154a), [link 2](https://danielhomola.com/feature%20selection/phd/borutapy-an-all-relevant-feature-selection-method/)
 
 # %% editable=true pycharm={"name": "#%%\n"} slideshow={"slide_type": ""} tags=["ex"]
+from sklearn.feature_selection import SelectPercentile, chi2, mutual_info_classif, RFE
+from sklearn.ensemble import RandomForestClassifier
+from lightgbm import LGBMClassifier
+from sklearn.metrics import roc_auc_score
+from sklearn.preprocessing import MinMaxScaler
+
+# %%
+selector_filter = SelectPercentile(mutual_info_classif, percentile=80)
+selector_filter.fit(X_train, y_train)
+
+X_train_filtered = selector_filter.transform(X_train)
+X_test_filtered = selector_filter.transform(X_test)
+
+# %%
+random_forest_classifier = RandomForestClassifier(n_estimators=500, random_state=0, criterion="entropy", n_jobs=-1)
+random_forest_classifier.fit(X_train, y_train)
+
+importances = random_forest_classifier.feature_importances_
+threshold = np.percentile(importances, 20)
+
+mask_embedded = importances > threshold
+X_train_emb = X_train[:, mask_embedded]
+X_test_emb = X_test[:, mask_embedded]
+
+# %%
+random_forest_base = RandomForestClassifier(n_estimators=100, random_state=0, criterion="entropy", n_jobs=-1)
+n_features_to_select = int(X_train.shape[1] * 0.8)
+
+rfe = RFE(random_forest_base, n_features_to_select=n_features_to_select, step=1)
+rfe.fit(X_train, y_train)
+
+X_train_wrap = X_train[:, rfe.support_]
+X_test_wrap = X_test[:, rfe.support_]
+
+
+# %%
+def evaluate_model(X_train, y_train, X_test, y_test, name):
+    results = {}
+    for model_name, model in {
+        "RandomForest": RandomForestClassifier(n_estimators=500, random_state=0, criterion="entropy", n_jobs=-1),
+        "LightGBM": LGBMClassifier(n_estimators=500, learning_rate=0.1, importance_type="gain", random_state=0, n_jobs=-1, verbose=-1)
+    }.items():
+        model.fit(X_train, y_train)
+        y_pred = model.predict_proba(X_test)[:, 1]
+        auc = roc_auc_score(y_test, y_pred)
+        results[model_name] = auc
+        print(f"{name} | {model_name}: AUROC = {auc:.4f}")
+    return results
+
+
+# %%
+print("\nFilter (mutual_info_classif)")
+filter_res = evaluate_model(X_train_filt, y_train, X_test_filt, y_test, "Filter")
+
+print("\nEmbedded (RandomForest feature_importances_)")
+embedded_res = evaluate_model(X_train_emb, y_train, X_test_emb, y_test, "Embedded")
+
+print("\nWrapper (RFE)")
+wrapper_res = evaluate_model(X_train_wrap, y_train, X_test_wrap, y_test, "Wrapper")
+
+
+# %% [markdown]
+# Metoda filtrująca okazała się najgorsza, natomiast metody wrapper i embedded były trochę lepsze. Generalnie usunięcie 20% najsłabszych zbytnio nie spowodowało pogorszenia wyników. 
+
+# %%
